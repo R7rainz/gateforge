@@ -8,27 +8,33 @@ import (
 )
 
 type Gateway struct {
-	lb    *loadbalancer.RoundRobin
-	proxy *httputil.ReverseProxy
+	lb *loadbalancer.RoundRobin
 }
 
 func NewGateway(lb *loadbalancer.RoundRobin) *Gateway {
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(proxyReq *httputil.ProxyRequest) {
-			target := lb.Next()
-			//handles scheme, host and path joining automatically
-			proxyReq.SetURL(target)
-			//set standard proxy headers like X-Forwarded-For
-			proxyReq.SetXForwarded()
-
-		},
-	}
 	return &Gateway{
-		lb:    lb,
-		proxy: proxy,
+		lb: lb,
 	}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	g.proxy.ServeHTTP(w, r)
+	backend := g.lb.Next()
+
+	if backend == nil {
+		http.Error(
+			w,
+			"No healthy backends available",
+			http.StatusBadGateway,
+		)
+		return
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(proxyReq *httputil.ProxyRequest) {
+			proxyReq.SetURL(backend.URL)
+			proxyReq.SetXForwarded()
+		},
+	}
+
+	proxy.ServeHTTP(w, r)
 }

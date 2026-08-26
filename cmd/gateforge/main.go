@@ -4,8 +4,10 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/r7rainz/gateforge/internal/gateway"
+	"github.com/r7rainz/gateforge/internal/healthcheck"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
 )
 
@@ -17,6 +19,8 @@ func main() {
 	backends := []*url.URL{u1, u2, u3}
 
 	lb := loadbalancer.NewRoundRobin(backends)
+	checker := healthcheck.NewChecker(5 * time.Second)
+	checker.Start(lb)
 
 	gw := gateway.NewGateway(lb)
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -12,13 +13,23 @@ import (
 )
 
 func main() {
-	u1, _ := url.Parse("http://localhost:9000")
-	u2, _ := url.Parse("http://localhost:9001")
-	u3, _ := url.Parse("http://localhost:9002")
+	ports := []string{
+		"9000", "9001", "9002", "9003",
+	}
 
-	backends := []*url.URL{u1, u2, u3}
+	urls := make([]*url.URL, 0, len(ports))
 
-	lb := loadbalancer.NewRoundRobin(backends)
+	for _, port := range ports {
+		backendURL, err := url.Parse(
+			"http://localhost:" + port,
+		)
+		if err != nil {
+			panic(err)
+		}
+		urls = append(urls, backendURL)
+	}
+
+	lb := loadbalancer.NewRoundRobin(urls)
 	checker := healthcheck.NewChecker(5 * time.Second)
 	checker.Start(lb)
 
@@ -28,9 +39,14 @@ func main() {
 
 	mux.Handle("/api/users/", gw)
 
+	mux.HandleFunc("/api/orders/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Orders endpoint")
+	})
+
 	log.Println("GateForge Proxy starting on :8080...")
-	err := http.ListenAndServe(":8080", mux)
+	timeoutMux := http.TimeoutHandler(mux, 2*time.Second, "Gateway request timeout")
+	err := http.ListenAndServe(":8080", timeoutMux)
 	if err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		log.Fatal(err)
 	}
 }

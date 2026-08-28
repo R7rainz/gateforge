@@ -31,9 +31,11 @@ func TestCheckHealthyBackend(t *testing.T) {
 		URL: serverURL,
 	}
 
-	checker := NewChecker(5 * time.Second)
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
 
-	if !checker.Check(backend) {
+	if !check(client, backend) {
 		t.Fatal("expected backend to be healthy")
 	}
 
@@ -58,8 +60,12 @@ func TestCheckBackend_500Response(t *testing.T) {
 		URL: backendURL,
 	}
 
-	checker := NewChecker(5 * time.Second)
-	healthy := checker.Check(backend)
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	// checker := NewChecker(5 * time.Second)
+	healthy := check(client, backend)
 
 	if healthy {
 		t.Fatalf("expected backend to be unhealthy")

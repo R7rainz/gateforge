@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/r7rainz/gateforge/internal/gateway"
@@ -16,7 +20,6 @@ func main() {
 	ports := []string{
 		"9000", "9001", "9002", "9003",
 	}
-
 	urls := make([]*url.URL, 0, len(ports))
 
 	for _, port := range ports {
@@ -26,10 +29,12 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+
 		urls = append(urls, backendURL)
 	}
 
 	lb := loadbalancer.NewRoundRobin(urls)
+
 	checker := healthcheck.NewChecker(5 * time.Second)
 	checker.Start(lb)
 
@@ -43,10 +48,51 @@ func main() {
 		fmt.Fprintln(w, "Orders endpoint")
 	})
 
-	log.Println("GateForge Proxy starting on :8080...")
-	timeoutMux := http.TimeoutHandler(mux, 2*time.Second, "Gateway request timeout")
-	err := http.ListenAndServe(":8080", timeoutMux)
-	if err != nil {
-		log.Fatal(err)
+	timeoutMux := http.TimeoutHandler(
+		mux, 2*time.Second, "Gateway request timeout",
+	)
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: timeoutMux,
 	}
+
+	signalCtx, stopSignal := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+
+	defer stopSignal()
+
+	go func() {
+		log.Println("GateForge Proxy starting at :8080...")
+
+		err := server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	<-signalCtx.Done()
+
+	log.Println("Shutdown signal received")
+
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	log.Println("Shutting down HTTP server...")
+
+	err := server.Shutdown(shutdownCtx)
+	if err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+
+	log.Println("Stopping health checker...")
+	checker.Stop()
+
+	log.Println("GateForge Stopped")
 }

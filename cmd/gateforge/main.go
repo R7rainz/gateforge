@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/healthcheck"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
+	"github.com/r7rainz/gateforge/internal/middleware"
 )
 
 func main() {
@@ -52,9 +54,19 @@ func main() {
 		mux, 2*time.Second, "Gateway request timeout",
 	)
 
+	logger := slog.New(
+		slog.NewTextHandler(
+			os.Stdout,
+			&slog.HandlerOptions{
+				Level: slog.LevelInfo,
+			},
+		),
+	)
+	loggedMux := middleware.RequestLog(logger)(timeoutMux)
+
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: timeoutMux,
+		Handler: loggedMux,
 	}
 
 	signalCtx, stopSignal := signal.NotifyContext(

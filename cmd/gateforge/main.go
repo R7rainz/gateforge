@@ -10,8 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"github.com/r7rainz/gateforge/internal/config"
 	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/healthcheck"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
@@ -19,25 +19,27 @@ import (
 )
 
 func main() {
-	ports := []string{
-		"9000", "9001", "9002", "9003",
+	cfg, err := config.Load("config.json")
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
 	}
-	urls := make([]*url.URL, 0, len(ports))
 
-	for _, port := range ports {
-		backendURL, err := url.Parse(
-			"http://localhost:" + port,
-		)
+	urls := make([]*url.URL, 0, len(cfg.BackendURLs))
+	for _, rawURL := range cfg.BackendURLs {
+		backendURL, err := url.Parse(rawURL)
 		if err != nil {
-			panic(err)
+			log.Fatalf(
+				"failed to parse backend URL %q: %v",
+				rawURL,
+				err,
+			)
 		}
-
 		urls = append(urls, backendURL)
 	}
 
 	lb := loadbalancer.NewRoundRobin(urls)
 
-	checker := healthcheck.NewChecker(5 * time.Second)
+	checker := healthcheck.NewChecker(cfg.HealthCheckInterval)
 	checker.Start(lb)
 
 	gw := gateway.NewGateway(lb)
@@ -51,7 +53,7 @@ func main() {
 	})
 
 	timeoutMux := http.TimeoutHandler(
-		mux, 2*time.Second, "Gateway request timeout",
+		mux, cfg.RequestTimeout, "Gateway request timeout",
 	)
 
 	logger := slog.New(
@@ -65,7 +67,7 @@ func main() {
 	loggedMux := middleware.RequestLog(logger)(timeoutMux)
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    cfg.ListenAddress,
 		Handler: loggedMux,
 	}
 
@@ -78,7 +80,7 @@ func main() {
 	defer stopSignal()
 
 	go func() {
-		log.Println("GateForge Proxy starting at :8080...")
+		log.Printf("GateForge Proxy starting at %s...", cfg.ListenAddress)
 
 		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
@@ -92,13 +94,13 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
-		5*time.Second,
+		cfg.ShutdownTimeout,
 	)
 	defer cancel()
 
 	log.Println("Shutting down HTTP server...")
 
-	err := server.Shutdown(shutdownCtx)
+	err = server.Shutdown(shutdownCtx)
 	if err != nil {
 		log.Printf("HTTP server shutdown error: %v", err)
 	}

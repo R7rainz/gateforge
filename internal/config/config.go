@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
+type Route struct {
+	Path    string `json:"path"`
+	Service string `json:"service"`
+}
+
+type Services map[string][]string
+
 type Config struct {
-	ListenAddress       string
-	BackendURLs         []string
+	ListenAddress       string   `json:"listen_address"`
+	Routes              []Route  `json:"routes"`
+	Services            Services `json:"services"`
 	HealthCheckInterval time.Duration
 	RequestTimeout      time.Duration
 	ShutdownTimeout     time.Duration
@@ -25,52 +34,48 @@ func Load(path string) (Config, error) {
 	var cfg Config
 
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, fmt.Errorf("parsed config: %w", err)
+		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
 
 	if err := cfg.validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
-	return cfg, nil
+	return cfg, err
 }
 
 func (c *Config) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		ListenAddress       string   `json:"listen_address"`
-		BackendURLs         []string `json:"backend_urls"`
+		Routes              []Route  `json:"routes"`
+		Services            Services `json:"services"`
 		HealthCheckInterval string   `json:"health_check_interval"`
 		RequestTimeout      string   `json:"request_timeout"`
 		ShutdownTimeout     string   `json:"shutdown_timeout"`
 	}
+
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
-	healthCheckInterval, err := time.ParseDuration(
-		raw.HealthCheckInterval,
-	)
+	healthCheckInterval, err := time.ParseDuration(raw.HealthCheckInterval)
 	if err != nil {
-		return fmt.Errorf(
-			"invalid health_check_interval: %w",
-			err,
-		)
+		return fmt.Errorf("invalid health_check_interval: %w", err)
 	}
 
 	requestTimeout, err := time.ParseDuration(raw.RequestTimeout)
 	if err != nil {
-		return fmt.Errorf("invalid request_timeout: %w", err)
+		return fmt.Errorf("invalid shutdown_timeout: %w", err)
 	}
 
-	shutdownTimeout, err := time.ParseDuration(
-		raw.ShutdownTimeout,
-	)
+	shutdownTimeout, err := time.ParseDuration(raw.ShutdownTimeout)
 	if err != nil {
 		return fmt.Errorf("invalid shutdown_timeout: %w", err)
 	}
 
 	c.ListenAddress = raw.ListenAddress
-	c.BackendURLs = raw.BackendURLs
+	c.Routes = raw.Routes
+	c.Services = raw.Services
 	c.HealthCheckInterval = healthCheckInterval
 	c.RequestTimeout = requestTimeout
 	c.ShutdownTimeout = shutdownTimeout
@@ -83,23 +88,65 @@ func (c *Config) validate() error {
 		return fmt.Errorf("listen_address is required")
 	}
 
-	if len(c.BackendURLs) == 0 {
-		return fmt.Errorf("backend_urls cannot be empty")
+	if len(c.Services) == 0 {
+		return fmt.Errorf("services cannot be empty")
 	}
 
-	for i, rawURL := range c.BackendURLs {
-		parsedURL, err := url.Parse(rawURL)
-		if err != nil {
-			return fmt.Errorf("backend_urls[%d] is invalid: %w", i, err)
+	for serviceName, backendURLs := range c.Services {
+		if strings.TrimSpace(serviceName) == "" {
+			return fmt.Errorf("service name cannot be empty")
 		}
-		if parsedURL.Scheme == "" || parsedURL.Host == "" {
-			return fmt.Errorf("backend_urls[%d] must be an absolute URL: %q", i, rawURL)
+
+		if len(backendURLs) == 0 {
+			return fmt.Errorf("service %q must have at least one backend", serviceName)
 		}
-		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-			return fmt.Errorf("backend_urls[%d] must use http or https: %q", i, rawURL)
+
+		for i, rawURL := range backendURLs {
+			parsedURL, err := url.Parse(rawURL)
+			if err != nil {
+				return fmt.Errorf("services[%q][%d] is invalid: %w", serviceName, i, err)
+			}
+
+			if parsedURL.Scheme == "" || parsedURL.Host == "" {
+				return fmt.Errorf("service[%q][%d] must be an absolute URL: %q", serviceName, i, rawURL)
+			}
+
+			if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+				return fmt.Errorf("services[%q][%d] must use http or https: %q", serviceName, i, rawURL)
+			}
+
 		}
 	}
 
+	if len(c.Routes) == 0 {
+		return fmt.Errorf("routes cannot be empty")
+	}
+
+	seenPaths := make(map[string]struct{}, len(c.Routes))
+
+	for _, route := range c.Routes {
+		if route.Path == "" {
+			return fmt.Errorf("route path cannot be empty")
+		}
+
+		if !strings.HasPrefix(route.Path, "/") {
+			return fmt.Errorf("route path must start with '/' :%q", route.Path)
+		}
+
+		if route.Service == "" {
+			return fmt.Errorf("route %q must specify a service", route.Path)
+		}
+
+		if _, exists := c.Services[route.Service]; !exists {
+			return fmt.Errorf("route %q references unknown service %q", route.Path, route.Service)
+		}
+
+		if _, exists := seenPaths[route.Path]; exists {
+			return fmt.Errorf("duplicate route path: %q", route.Path)
+		}
+
+		seenPaths[route.Path] = struct{}{}
+	}
 	if c.HealthCheckInterval <= 0 {
 		return fmt.Errorf("health_check_interval must be greater than zero")
 	}
@@ -109,7 +156,7 @@ func (c *Config) validate() error {
 	}
 
 	if c.ShutdownTimeout <= 0 {
-		return fmt.Errorf("shutdown_timeout should be greater than zero")
+		return fmt.Errorf("shutdown_timeout must be greater than zero")
 	}
 
 	return nil

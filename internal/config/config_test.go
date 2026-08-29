@@ -30,10 +30,26 @@ func writeTempConfig(t *testing.T, contents string) string {
 func TestLoadValidConfig(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"listen_address": ":8080",
-		"backend_urls": [
-			"http://localhost:9000",
-			"http://localhost:9001"
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			},
+			{
+				"path": "/api/orders",
+				"service": "orders"
+			}
 		],
+		"services": {
+			"users": [
+				"http://localhost:9000",
+				"http://localhost:9001"
+			],
+			"orders": [
+				"http://localhost:9002",
+				"http://localhost:9003"
+			]
+		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s"
@@ -51,10 +67,31 @@ func TestLoadValidConfig(t *testing.T) {
 		)
 	}
 
-	if len(cfg.BackendURLs) != 2 {
+	if len(cfg.Routes) != 2 {
 		t.Fatalf(
-			"expected 2 backends, got %d",
-			len(cfg.BackendURLs),
+			"expected 2 routes, got %d",
+			len(cfg.Routes),
+		)
+	}
+
+	if len(cfg.Services) != 2 {
+		t.Fatalf(
+			"expected 2 services, got %d",
+			len(cfg.Services),
+		)
+	}
+
+	if len(cfg.Services["users"]) != 2 {
+		t.Fatalf(
+			"expected 2 users backends, got %d",
+			len(cfg.Services["users"]),
+		)
+	}
+
+	if len(cfg.Services["orders"]) != 2 {
+		t.Fatalf(
+			"expected 2 orders backends, got %d",
+			len(cfg.Services["orders"]),
 		)
 	}
 
@@ -83,7 +120,7 @@ func TestLoadValidConfig(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"listen_address": ":8080",
-		"backend_urls":
+		"routes":
 	}`)
 
 	_, err := Load(path)
@@ -96,9 +133,17 @@ func TestLoadInvalidJSON(t *testing.T) {
 func TestLoadInvalidBackendURL(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"listen_address": ":8080",
-		"backend_urls": [
-			"not-a-url"
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
 		],
+		"services": {
+			"users": [
+				"not-a-url"
+			]
+		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s"
@@ -111,12 +156,46 @@ func TestLoadInvalidBackendURL(t *testing.T) {
 	}
 }
 
+func TestLoadInvalidBackendScheme(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"listen_address": ":8080",
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
+		],
+		"services": {
+			"users": [
+				"ftp://localhost:9000"
+			]
+		},
+		"health_check_interval": "5s",
+		"request_timeout": "2s",
+		"shutdown_timeout": "5s"
+	}`)
+
+	_, err := Load(path)
+
+	if err == nil {
+		t.Fatal("expected error for invalid backend scheme")
+	}
+}
+
 func TestLoadInvalidDuration(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"listen_address": ":8080",
-		"backend_urls": [
-			"http://localhost:9000"
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
 		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
 		"health_check_interval": "hello",
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s"
@@ -132,9 +211,17 @@ func TestLoadInvalidDuration(t *testing.T) {
 func TestLoadInvalidTimeout(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"listen_address": ":8080",
-		"backend_urls": [
-			"http://localhost:9000"
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
 		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
 		"health_check_interval": "5s",
 		"request_timeout": "0s",
 		"shutdown_timeout": "5s"
@@ -144,5 +231,31 @@ func TestLoadInvalidTimeout(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected error for non-positive timeout")
+	}
+}
+
+func TestLoadRouteWithUnknownService(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"listen_address": ":8080",
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "missing"
+			}
+		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
+		"health_check_interval": "5s",
+		"request_timeout": "2s",
+		"shutdown_timeout": "5s"
+	}`)
+
+	_, err := Load(path)
+
+	if err == nil {
+		t.Fatal("expected error for route referencing unknown service")
 	}
 }

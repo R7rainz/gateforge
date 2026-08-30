@@ -15,6 +15,7 @@ import (
 	"github.com/r7rainz/gateforge/internal/healthcheck"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
 	"github.com/r7rainz/gateforge/internal/middleware"
+	"github.com/r7rainz/gateforge/internal/ratelimit"
 )
 
 func main() {
@@ -22,11 +23,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-
-	loadBalancers := make(
-		map[string]*loadbalancer.RoundRobin,
-		len(cfg.Services),
-	)
 
 	gateways := make(
 		map[string]http.Handler,
@@ -57,7 +53,6 @@ func main() {
 		}
 
 		lb := loadbalancer.NewRoundRobin(urls)
-		loadBalancers[serviceName] = lb
 
 		checker := healthcheck.NewChecker(
 			cfg.HealthCheckInterval,
@@ -77,12 +72,27 @@ func main() {
 		log.Fatalf("failed to create router: %v", err)
 	}
 
+	// Timeout middleware.
 	timeoutMux := http.TimeoutHandler(
 		mux,
 		cfg.RequestTimeout,
 		"Gateway request timeout",
 	)
 
+	// Rate limiter: configured requests per window per client IP.
+	rateLimiter, err := ratelimit.New(
+		cfg.RateLimit,
+		cfg.RateLimitWindow,
+	)
+	if err != nil {
+		log.Fatalf("failed to create rate limiter: %v", err)
+	}
+
+	rateLimitedMux := middleware.RateLimit(
+		rateLimiter,
+	)(timeoutMux)
+
+	// Request logging middleware.
 	logger := slog.New(
 		slog.NewTextHandler(
 			os.Stdout,
@@ -92,7 +102,9 @@ func main() {
 		),
 	)
 
-	loggedMux := middleware.RequestLog(logger)(timeoutMux)
+	loggedMux := middleware.RequestLog(
+		logger,
+	)(rateLimitedMux)
 
 	server := &http.Server{
 		Addr:    cfg.ListenAddress,

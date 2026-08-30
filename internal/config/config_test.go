@@ -52,7 +52,9 @@ func TestLoadValidConfig(t *testing.T) {
 		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	cfg, err := Load(path)
@@ -92,6 +94,17 @@ func TestLoadValidConfig(t *testing.T) {
 		t.Fatalf(
 			"expected 2 orders backends, got %d",
 			len(cfg.Services["orders"]),
+		)
+	}
+
+	if cfg.RateLimit != 2 {
+		t.Fatalf("expected rate limit 2, got %d", cfg.RateLimit)
+	}
+
+	if cfg.RateLimitWindow != 100*time.Millisecond {
+		t.Fatalf(
+			"expected 100ms rate-limit window, got %v",
+			cfg.RateLimitWindow,
 		)
 	}
 
@@ -146,7 +159,9 @@ func TestLoadInvalidBackendURL(t *testing.T) {
 		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	_, err := Load(path)
@@ -172,7 +187,9 @@ func TestLoadInvalidBackendScheme(t *testing.T) {
 		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	_, err := Load(path)
@@ -198,7 +215,9 @@ func TestLoadInvalidDuration(t *testing.T) {
 		},
 		"health_check_interval": "hello",
 		"request_timeout": "2s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	_, err := Load(path)
@@ -224,7 +243,9 @@ func TestLoadInvalidTimeout(t *testing.T) {
 		},
 		"health_check_interval": "5s",
 		"request_timeout": "0s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	_, err := Load(path)
@@ -250,7 +271,9 @@ func TestLoadRouteWithUnknownService(t *testing.T) {
 		},
 		"health_check_interval": "5s",
 		"request_timeout": "2s",
-		"shutdown_timeout": "5s"
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms"
 	}`)
 
 	_, err := Load(path)

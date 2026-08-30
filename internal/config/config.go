@@ -23,6 +23,8 @@ type Config struct {
 	HealthCheckInterval time.Duration
 	RequestTimeout      time.Duration
 	ShutdownTimeout     time.Duration
+	RateLimit           int
+	RateLimitWindow     time.Duration
 }
 
 func Load(path string) (Config, error) {
@@ -33,15 +35,15 @@ func Load(path string) (Config, error) {
 
 	var cfg Config
 
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err = json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
+	if err = cfg.validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
-	return cfg, err
+	return cfg, nil
 }
 
 func (c *Config) UnmarshalJSON(data []byte) error {
@@ -52,6 +54,8 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		HealthCheckInterval string   `json:"health_check_interval"`
 		RequestTimeout      string   `json:"request_timeout"`
 		ShutdownTimeout     string   `json:"shutdown_timeout"`
+		RateLimit           int      `json:"rate_limit"`
+		RateLimitWindow     string   `json:"rate_limit_window"`
 	}
 
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -73,12 +77,19 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid shutdown_timeout: %w", err)
 	}
 
+	rateLimitWindow, err := time.ParseDuration(raw.RateLimitWindow)
+	if err != nil {
+		return fmt.Errorf("invalid rate_limit_window: %w", err)
+	}
+
 	c.ListenAddress = raw.ListenAddress
 	c.Routes = raw.Routes
 	c.Services = raw.Services
 	c.HealthCheckInterval = healthCheckInterval
 	c.RequestTimeout = requestTimeout
 	c.ShutdownTimeout = shutdownTimeout
+	c.RateLimit = raw.RateLimit
+	c.RateLimitWindow = rateLimitWindow
 
 	return nil
 }
@@ -157,6 +168,14 @@ func (c *Config) validate() error {
 
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown_timeout must be greater than zero")
+	}
+
+	if c.RateLimit <= 0 {
+		return fmt.Errorf("rate_limit must be greater than zero")
+	}
+
+	if c.RateLimitWindow <= 0 {
+		return fmt.Errorf("rate_limit_window must be greater than zero")
 	}
 
 	return nil

@@ -1,6 +1,5 @@
 {
   "listen_address": ":8080",
-
   "routes": [
     {
       "path": "/api/users",
@@ -11,7 +10,6 @@
       "service": "orders"
     }
   ],
-
   "services": {
     "users": [
       "http://localhost:9000",
@@ -22,8 +20,9 @@
       "http://localhost:9003"
     ]
   },
-
   "health_check_interval": "5s",
   "request_timeout": "2s",
-  "shutdown_timeout": "5s"
+  "shutdown_timeout": "5s",
+  "rate_limit": 2,
+  "rate_limit_window": "100ms"
 }

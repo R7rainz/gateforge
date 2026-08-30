@@ -65,7 +65,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 
 	requestTimeout, err := time.ParseDuration(raw.RequestTimeout)
 	if err != nil {
-		return fmt.Errorf("invalid shutdown_timeout: %w", err)
+		return fmt.Errorf("invalid request_timeout: %w", err)
 	}
 
 	shutdownTimeout, err := time.ParseDuration(raw.ShutdownTimeout)

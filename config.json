@@ -25,5 +25,7 @@
   "shutdown_timeout": "5s",
   "rate_limit": 2,
   "rate_limit_window": "100ms",
-  "max_retries": 1
+  "max_retries": 1,
+  "circuit_breaker_threshold": 3,
+  "circuit_breaker_cooldown": "5s"
 }

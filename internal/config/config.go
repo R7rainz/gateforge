@@ -17,15 +17,17 @@ type Route struct {
 type Services map[string][]string
 
 type Config struct {
-	ListenAddress       string   `json:"listen_address"`
-	Routes              []Route  `json:"routes"`
-	Services            Services `json:"services"`
-	HealthCheckInterval time.Duration
-	RequestTimeout      time.Duration
-	ShutdownTimeout     time.Duration
-	RateLimit           int
-	RateLimitWindow     time.Duration
-	MaxRetries          int
+	ListenAddress           string   `json:"listen_address"`
+	Routes                  []Route  `json:"routes"`
+	Services                Services `json:"services"`
+	HealthCheckInterval     time.Duration
+	RequestTimeout          time.Duration
+	ShutdownTimeout         time.Duration
+	RateLimit               int
+	RateLimitWindow         time.Duration
+	MaxRetries              int
+	CircuitBreakerThreshold int
+	CircuitBreakerCooldown  time.Duration
 }
 
 func Load(path string) (Config, error) {
@@ -49,15 +51,17 @@ func Load(path string) (Config, error) {
 
 func (c *Config) UnmarshalJSON(data []byte) error {
 	var raw struct {
-		ListenAddress       string   `json:"listen_address"`
-		Routes              []Route  `json:"routes"`
-		Services            Services `json:"services"`
-		HealthCheckInterval string   `json:"health_check_interval"`
-		RequestTimeout      string   `json:"request_timeout"`
-		ShutdownTimeout     string   `json:"shutdown_timeout"`
-		RateLimit           int      `json:"rate_limit"`
-		RateLimitWindow     string   `json:"rate_limit_window"`
-		MaxRetries          int      `json:"max_retries"`
+		ListenAddress           string   `json:"listen_address"`
+		Routes                  []Route  `json:"routes"`
+		Services                Services `json:"services"`
+		HealthCheckInterval     string   `json:"health_check_interval"`
+		RequestTimeout          string   `json:"request_timeout"`
+		ShutdownTimeout         string   `json:"shutdown_timeout"`
+		RateLimit               int      `json:"rate_limit"`
+		RateLimitWindow         string   `json:"rate_limit_window"`
+		MaxRetries              int      `json:"max_retries"`
+		CircuitBreakerThreshold int      `json:"circuit_breaker_threshold"`
+		CircuitBreakerCooldown  string   `json:"circuit_breaker_cooldown"`
 	}
 
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -84,6 +88,13 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid rate_limit_window: %w", err)
 	}
 
+	circuitBreakerCooldown, err := time.ParseDuration(
+		raw.CircuitBreakerCooldown,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid circuit_breaker_cooldown: %w", err)
+	}
+
 	c.ListenAddress = raw.ListenAddress
 	c.Routes = raw.Routes
 	c.Services = raw.Services
@@ -93,6 +104,8 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.RateLimit = raw.RateLimit
 	c.RateLimitWindow = rateLimitWindow
 	c.MaxRetries = raw.MaxRetries
+	c.CircuitBreakerThreshold = raw.CircuitBreakerThreshold
+	c.CircuitBreakerCooldown = circuitBreakerCooldown
 
 	return nil
 }
@@ -183,6 +196,18 @@ func (c *Config) validate() error {
 
 	if c.MaxRetries < 0 {
 		return fmt.Errorf("max_retries must be non negative")
+	}
+
+	if c.CircuitBreakerThreshold <= 0 {
+		return fmt.Errorf(
+			"circuit_breaker_threshold must be greater than zero",
+		)
+	}
+
+	if c.CircuitBreakerCooldown <= 0 {
+		return fmt.Errorf(
+			"circuit_breaker_cooldown must be greater than zero",
+		)
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +26,31 @@ func writeTempConfig(t *testing.T, contents string) string {
 	}
 
 	return path
+}
+
+func validConfigWithBreaker(threshold int, cooldown string) string {
+	return fmt.Sprintf(`{
+		"listen_address": ":8080",
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
+		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
+		"health_check_interval": "5s",
+		"request_timeout": "2s",
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms",
+		"max_retries": 1,
+		"circuit_breaker_threshold": %d,
+		"circuit_breaker_cooldown": %q
+	}`, threshold, cooldown)
 }
 
 func TestLoadValidConfig(t *testing.T) {
@@ -55,7 +81,9 @@ func TestLoadValidConfig(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	cfg, err := Load(path)
@@ -129,6 +157,20 @@ func TestLoadValidConfig(t *testing.T) {
 			cfg.ShutdownTimeout,
 		)
 	}
+
+	if cfg.CircuitBreakerThreshold != 3 {
+		t.Fatalf(
+			"expected circuit breaker threshold 3, got %d",
+			cfg.CircuitBreakerThreshold,
+		)
+	}
+
+	if cfg.CircuitBreakerCooldown != 5*time.Second {
+		t.Fatalf(
+			"expected 5s circuit breaker cooldown, got %v",
+			cfg.CircuitBreakerCooldown,
+		)
+	}
 }
 
 func TestLoadInvalidJSON(t *testing.T) {
@@ -141,6 +183,26 @@ func TestLoadInvalidJSON(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestLoadInvalidCircuitBreakerThreshold(t *testing.T) {
+	path := writeTempConfig(t, validConfigWithBreaker(0, "5s"))
+
+	_, err := Load(path)
+
+	if err == nil {
+		t.Fatal("expected error for invalid circuit breaker threshold")
+	}
+}
+
+func TestLoadInvalidCircuitBreakerCooldown(t *testing.T) {
+	path := writeTempConfig(t, validConfigWithBreaker(3, "0s"))
+
+	_, err := Load(path)
+
+	if err == nil {
+		t.Fatal("expected error for invalid circuit breaker cooldown")
 	}
 }
 
@@ -163,7 +225,9 @@ func TestLoadInvalidBackendURL(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -192,7 +256,9 @@ func TestLoadInvalidBackendScheme(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -221,7 +287,9 @@ func TestLoadInvalidDuration(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -250,7 +318,9 @@ func TestLoadInvalidTimeout(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -279,7 +349,9 @@ func TestLoadRouteWithUnknownService(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-        "max_retries": 1
+		"max_retries": 1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -308,7 +380,9 @@ func TestLoadNegativeMaxRetries(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-		"max_retries": -1
+		"max_retries": -1,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	_, err := Load(path)
@@ -337,7 +411,9 @@ func TestLoadZeroMaxRetries(t *testing.T) {
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
 		"rate_limit_window": "100ms",
-		"max_retries": 0
+		"max_retries": 0,
+		"circuit_breaker_threshold": 3,
+		"circuit_breaker_cooldown": "5s"
 	}`)
 
 	cfg, err := Load(path)

@@ -60,7 +60,12 @@ func main() {
 		checker.Start(lb)
 		checkers = append(checkers, checker)
 
-		gateways[serviceName] = gateway.NewGateway(lb, cfg.MaxRetries)
+		gateways[serviceName] = gateway.NewGateway(
+			lb,
+			cfg.MaxRetries,
+			cfg.CircuitBreakerThreshold,
+			cfg.CircuitBreakerCooldown,
+		)
 	}
 
 	// Build routes from config.

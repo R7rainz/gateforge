@@ -54,7 +54,8 @@ func TestLoadValidConfig(t *testing.T) {
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	cfg, err := Load(path)
@@ -161,7 +162,8 @@ func TestLoadInvalidBackendURL(t *testing.T) {
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	_, err := Load(path)
@@ -189,7 +191,8 @@ func TestLoadInvalidBackendScheme(t *testing.T) {
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	_, err := Load(path)
@@ -217,7 +220,8 @@ func TestLoadInvalidDuration(t *testing.T) {
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	_, err := Load(path)
@@ -245,7 +249,8 @@ func TestLoadInvalidTimeout(t *testing.T) {
 		"request_timeout": "0s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	_, err := Load(path)
@@ -273,12 +278,81 @@ func TestLoadRouteWithUnknownService(t *testing.T) {
 		"request_timeout": "2s",
 		"shutdown_timeout": "5s",
 		"rate_limit": 2,
-		"rate_limit_window": "100ms"
+		"rate_limit_window": "100ms",
+        "max_retries": 1
 	}`)
 
 	_, err := Load(path)
 
 	if err == nil {
 		t.Fatal("expected error for route referencing unknown service")
+	}
+}
+
+func TestLoadNegativeMaxRetries(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"listen_address": ":8080",
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
+		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
+		"health_check_interval": "5s",
+		"request_timeout": "2s",
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms",
+		"max_retries": -1
+	}`)
+
+	_, err := Load(path)
+
+	if err == nil {
+		t.Fatal("expected error for negative max_retries")
+	}
+}
+
+func TestLoadZeroMaxRetries(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"listen_address": ":8080",
+		"routes": [
+			{
+				"path": "/api/users",
+				"service": "users"
+			}
+		],
+		"services": {
+			"users": [
+				"http://localhost:9000"
+			]
+		},
+		"health_check_interval": "5s",
+		"request_timeout": "2s",
+		"shutdown_timeout": "5s",
+		"rate_limit": 2,
+		"rate_limit_window": "100ms",
+		"max_retries": 0
+	}`)
+
+	cfg, err := Load(path)
+
+	if err != nil {
+		t.Fatalf(
+			"expected zero max_retries to be valid, got error: %v",
+			err,
+		)
+	}
+
+	if cfg.MaxRetries != 0 {
+		t.Fatalf(
+			"expected max_retries 0, got %d",
+			cfg.MaxRetries,
+		)
 	}
 }

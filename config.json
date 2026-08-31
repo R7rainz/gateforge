@@ -24,5 +24,6 @@
   "request_timeout": "2s",
   "shutdown_timeout": "5s",
   "rate_limit": 2,
-  "rate_limit_window": "100ms"
+  "rate_limit_window": "100ms",
+  "max_retries": 1
 }

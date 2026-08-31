@@ -25,6 +25,7 @@ type Config struct {
 	ShutdownTimeout     time.Duration
 	RateLimit           int
 	RateLimitWindow     time.Duration
+	MaxRetries          int
 }
 
 func Load(path string) (Config, error) {
@@ -56,6 +57,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		ShutdownTimeout     string   `json:"shutdown_timeout"`
 		RateLimit           int      `json:"rate_limit"`
 		RateLimitWindow     string   `json:"rate_limit_window"`
+		MaxRetries          int      `json:"max_retries"`
 	}
 
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -90,6 +92,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.ShutdownTimeout = shutdownTimeout
 	c.RateLimit = raw.RateLimit
 	c.RateLimitWindow = rateLimitWindow
+	c.MaxRetries = raw.MaxRetries
 
 	return nil
 }
@@ -176,6 +179,10 @@ func (c *Config) validate() error {
 
 	if c.RateLimitWindow <= 0 {
 		return fmt.Errorf("rate_limit_window must be greater than zero")
+	}
+
+	if c.MaxRetries < 0 {
+		return fmt.Errorf("max_retries must be non negative")
 	}
 
 	return nil

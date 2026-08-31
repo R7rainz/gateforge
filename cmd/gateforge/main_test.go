@@ -31,7 +31,7 @@ func TestGatewayTimeout(t *testing.T) {
 		backendURL,
 	})
 
-	gw := gateway.NewGateway(lb)
+	gw := gateway.NewGateway(lb, 0)
 
 	mux := http.NewServeMux()
 

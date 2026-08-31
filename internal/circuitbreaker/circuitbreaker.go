@@ -86,6 +86,9 @@ func (cb *CircuitBreaker) Record(statusCode int, err error) {
 	}
 
 	if statusCode >= 400 && statusCode <= 499 {
+		if cb.state == HalfOpen {
+			cb.recordSuccess()
+		}
 		return
 	}
 

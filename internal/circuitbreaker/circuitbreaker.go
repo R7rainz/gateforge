@@ -1,3 +1,4 @@
+// Package circuitbreaker provides a concurrent circuit breaker for backend failures.
 package circuitbreaker
 
 import (

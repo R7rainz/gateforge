@@ -1,3 +1,4 @@
+// Package healthcheck monitors backend health and updates their availability.
 package healthcheck
 
 import (

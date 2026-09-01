@@ -1,3 +1,4 @@
+// Package ratelimit provides concurrent client request limiting.
 package ratelimit
 
 import (

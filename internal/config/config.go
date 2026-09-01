@@ -1,3 +1,4 @@
+// Package config loads and validates GateForge configuration.
 package config
 
 import (

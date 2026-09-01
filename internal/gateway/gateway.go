@@ -1,3 +1,4 @@
+// Package gateway routes requests and proxies them to backend services.
 package gateway
 
 import (

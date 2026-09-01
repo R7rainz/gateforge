@@ -1,3 +1,4 @@
+// Package main starts the GateForge HTTP gateway.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware for GateForge requests.
 package middleware
 
 import (

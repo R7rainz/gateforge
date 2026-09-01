@@ -1,3 +1,4 @@
+// Package loadbalancer distributes requests across backend instances.
 package loadbalancer
 
 import (

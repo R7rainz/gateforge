@@ -14,7 +14,7 @@ type Backend struct {
 type RoundRobin struct {
 	backends []*Backend
 	next     int
-	mu       sync.Mutex
+	mu       sync.RWMutex
 }
 
 func NewRoundRobin(urls []*url.URL) *RoundRobin {
@@ -61,8 +61,21 @@ func (rr *RoundRobin) SetHealth(url *url.URL, healthy bool) {
 }
 
 func (rr *RoundRobin) Backends() []*Backend {
-	rr.mu.Lock()
-	defer rr.mu.Unlock()
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
 
 	return rr.backends
+}
+
+func (rr *RoundRobin) HasHealthyBackend() bool {
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
+
+	for _, backend := range rr.backends {
+		if backend.Healthy {
+			return true
+		}
+	}
+
+	return false
 }

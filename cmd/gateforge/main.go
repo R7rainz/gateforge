@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/r7rainz/gateforge/internal/admin"
 	"github.com/r7rainz/gateforge/internal/config"
 	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/healthcheck"
@@ -36,6 +37,11 @@ func main() {
 		len(cfg.Services),
 	)
 
+	loadBalancers := make(
+		map[string]*loadbalancer.RoundRobin,
+		len(cfg.Services),
+	)
+
 	// Create one load balancer and one health checker per service.
 	for serviceName, rawURLs := range cfg.Services {
 		urls := make([]*url.URL, 0, len(rawURLs))
@@ -54,6 +60,7 @@ func main() {
 		}
 
 		lb := loadbalancer.NewRoundRobin(urls)
+		loadBalancers[serviceName] = lb
 
 		checker := healthcheck.NewChecker(
 			cfg.HealthCheckInterval,
@@ -78,7 +85,7 @@ func main() {
 		log.Fatalf("failed to create router: %v", err)
 	}
 
-	// Timeout middleware.
+	// API middleware.
 	timeoutMux := http.TimeoutHandler(
 		mux,
 		cfg.RequestTimeout,
@@ -94,9 +101,25 @@ func main() {
 		log.Fatalf("failed to create rate limiter: %v", err)
 	}
 
-	rateLimitedMux := middleware.RateLimit(
+	rateLimitedAPI := middleware.RateLimit(
 		rateLimiter,
 	)(timeoutMux)
+
+	// Outer mux for admin endpoints and API.
+	outerMux := http.NewServeMux()
+
+	outerMux.HandleFunc(
+		"/health",
+		admin.HealthHandler,
+	)
+	outerMux.Handle(
+		"/ready",
+		admin.ReadyHandler(loadBalancers),
+	)
+	outerMux.Handle(
+		"/api/",
+		rateLimitedAPI,
+	)
 
 	// Request logging middleware.
 	logger := slog.New(
@@ -110,7 +133,7 @@ func main() {
 
 	loggedMux := middleware.RequestLog(
 		logger,
-	)(rateLimitedMux)
+	)(outerMux)
 
 	server := &http.Server{
 		Addr:    cfg.ListenAddress,
@@ -122,6 +145,7 @@ func main() {
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
+
 	defer stopSignal()
 
 	go func() {

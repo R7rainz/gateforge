@@ -16,6 +16,7 @@ import (
 	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/healthcheck"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
+	"github.com/r7rainz/gateforge/internal/metrics"
 	"github.com/r7rainz/gateforge/internal/middleware"
 	"github.com/r7rainz/gateforge/internal/ratelimit"
 )
@@ -85,6 +86,8 @@ func main() {
 		log.Fatalf("failed to create router: %v", err)
 	}
 
+	metricCollector := metrics.New()
+
 	// API middleware.
 	timeoutMux := http.TimeoutHandler(
 		mux,
@@ -117,6 +120,10 @@ func main() {
 		admin.ReadyHandler(loadBalancers),
 	)
 	outerMux.Handle(
+		"/metrics",
+		metricCollector.Handler(),
+	)
+	outerMux.Handle(
 		"/api/",
 		rateLimitedAPI,
 	)
@@ -131,9 +138,13 @@ func main() {
 		),
 	)
 
+	metricMux := middleware.Metrics(
+		metricCollector,
+	)(outerMux)
+
 	loggedMux := middleware.RequestLog(
 		logger,
-	)(outerMux)
+	)(metricMux)
 
 	server := &http.Server{
 		Addr:    cfg.ListenAddress,

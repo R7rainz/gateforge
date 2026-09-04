@@ -1,0 +1,31 @@
+{
+  "listen_address": ":8080",
+  "routes": [
+    {
+      "path": "/api/users",
+      "service": "users"
+    },
+    {
+      "path": "/api/orders",
+      "service": "orders"
+    }
+  ],
+  "services": {
+    "users": [
+      "http://users-1:9000",
+      "http://users-2:9001"
+    ],
+    "orders": [
+      "http://orders-1:9002",
+      "http://orders-2:9003"
+    ]
+  },
+  "health_check_interval": "5s",
+  "request_timeout": "2s",
+  "shutdown_timeout": "5s",
+  "rate_limit": 2,
+  "rate_limit_window": "100ms",
+  "max_retries": 1,
+  "circuit_breaker_threshold": 3,
+  "circuit_breaker_cooldown": "5s"
+}

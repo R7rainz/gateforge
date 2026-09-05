@@ -13,8 +13,16 @@ import (
 
 func TestUsersRouteIntegration(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Method != "GET" {
+			t.Errorf("expected method GET, got %s", r.Method)
+		}
+
+		if r.URL.Path != "/api/users/42" {
+			t.Errorf("expected path /api/users/42, got %s", r.URL.Path)
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("users backend"))
+		_, _ = w.Write([]byte("users backend"))
 	}))
 
 	defer backend.Close()

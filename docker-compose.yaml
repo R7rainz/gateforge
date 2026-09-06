@@ -1,5 +1,7 @@
 services:
     app:
+        networks:
+            - gateforge-monitor
         build:
             context: .
         container_name: gateforge
@@ -10,17 +12,28 @@ services:
             - ./config.docker.json:/app/config.json:ro
 
     users-1:
+        networks:
+            - gateforge-monitor
         build:
             context: ../9000
 
     users-2:
+        networks:
+            - "gateforge-monitor"
         build:
             context: ../9001
 
     orders-1:
+        networks:
+            - "gateforge-monitor"
         build:
             context: ../9002
 
     orders-2:
+        networks:
+            - "gateforge-monitor"
         build:
             context: ../9003
+networks:
+    gateforge-monitor:
+        external: true

@@ -32,6 +32,11 @@ func main() {
 		len(cfg.Services),
 	)
 
+	gatewayInstances := make(
+		map[string]*gateway.Gateway,
+		len(cfg.Services),
+	)
+
 	checkers := make(
 		[]*healthcheck.Checker,
 		0,
@@ -69,12 +74,15 @@ func main() {
 		checker.Start(lb)
 		checkers = append(checkers, checker)
 
-		gateways[serviceName] = gateway.NewGateway(
+		gw := gateway.NewGateway(
 			lb,
 			cfg.MaxRetries,
 			cfg.CircuitBreakerThreshold,
 			cfg.CircuitBreakerCooldown,
 		)
+
+		gateways[serviceName] = gw
+		gatewayInstances[serviceName] = gw
 	}
 
 	// Build routes from config.
@@ -86,7 +94,7 @@ func main() {
 		log.Fatalf("failed to create router: %v", err)
 	}
 
-	metricCollector := metrics.New(loadBalancers)
+	metricCollector := metrics.New(loadBalancers, gatewayInstances)
 
 	// API middleware.
 	timeoutMux := http.TimeoutHandler(

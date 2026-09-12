@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
 )
 
@@ -16,6 +17,7 @@ type Metrics struct {
 	rateLimitedRequests atomic.Uint64
 	totalLatencyNanos   atomic.Uint64
 	loadBalancers       map[string]*loadbalancer.RoundRobin
+	gatewayInstances    map[string]*gateway.Gateway
 }
 
 type Snapshot struct {
@@ -25,9 +27,10 @@ type Snapshot struct {
 	TotalLatencyNanos   uint64
 }
 
-func New(loadbalancer map[string]*loadbalancer.RoundRobin) *Metrics {
+func New(loadbalancer map[string]*loadbalancer.RoundRobin, gatewayInstances map[string]*gateway.Gateway) *Metrics {
 	return &Metrics{
-		loadBalancers: loadbalancer,
+		loadBalancers:    loadbalancer,
+		gatewayInstances: gatewayInstances,
 	}
 }
 

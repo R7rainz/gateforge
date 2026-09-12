@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/r7rainz/gateforge/internal/circuitbreaker"
 	"github.com/r7rainz/gateforge/internal/gateway"
 	"github.com/r7rainz/gateforge/internal/loadbalancer"
 )
@@ -102,6 +103,31 @@ func (m *Metrics) Handler() http.Handler {
 				}
 
 				fmt.Fprintf(w, "gateforge_backend_health{service=%q, backend=%q} %d\n", service, state.URL, health)
+			}
+		}
+
+		fmt.Fprintf(
+			w,
+			"\n# HELP gateforge_circuit_breaker_state Current circuit breaker state\n"+
+				"# TYPE gateforge_circuit_breaker_state gauge\n",
+		)
+
+		for service, gw := range m.gatewayInstances {
+			states := gw.CircuitBreakerSnapshot()
+
+			for _, state := range states {
+				value := 0
+
+				switch state.State {
+				case circuitbreaker.Closed:
+					value = 0
+				case circuitbreaker.Open:
+					value = 1
+				case circuitbreaker.HalfOpen:
+					value = 2
+				}
+
+				fmt.Fprintf(w, "gateforge_circuit_breaker_state{service=%q,backend=%q} %d\n", service, state.BackendURL, value)
 			}
 		}
 	})

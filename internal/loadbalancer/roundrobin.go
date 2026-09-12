@@ -11,10 +11,29 @@ type Backend struct {
 	Healthy bool
 }
 
+type BackendState struct {
+	URL     string
+	Healthy bool
+}
+
 type RoundRobin struct {
 	backends []*Backend
 	next     int
 	mu       sync.RWMutex
+}
+
+func (rr *RoundRobin) Snapshot() []BackendState {
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
+
+	states := make([]BackendState, 0, len(rr.backends))
+	for _, backend := range rr.backends {
+		states = append(states, BackendState{
+			URL:     backend.URL.String(),
+			Healthy: backend.Healthy,
+		})
+	}
+	return states
 }
 
 func NewRoundRobin(urls []*url.URL) *RoundRobin {

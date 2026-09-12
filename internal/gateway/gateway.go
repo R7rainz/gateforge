@@ -16,6 +16,11 @@ type Gateway struct {
 	breakers map[*loadbalancer.Backend]*circuitbreaker.CircuitBreaker
 }
 
+type BackendCircuitState struct {
+	BackendURL string
+	State      circuitbreaker.State
+}
+
 func NewGateway(
 	lb *loadbalancer.RoundRobin,
 	retries int,
@@ -40,6 +45,19 @@ func NewGateway(
 		retries:  retries,
 		breakers: breakers,
 	}
+}
+
+func (g *Gateway) CircuitBreakerSnapshot() []BackendCircuitState {
+	states := make([]BackendCircuitState, 0, len(g.breakers))
+
+	for backend, breaker := range g.breakers {
+		states = append(states, BackendCircuitState{
+			BackendURL: backend.URL.String(),
+			State:      breaker.State(),
+		})
+	}
+
+	return states
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {

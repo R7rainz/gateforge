@@ -10,7 +10,7 @@ import (
 )
 
 func TestMetricsRecords200(t *testing.T) {
-	m := metrics.New()
+	m := metrics.New(nil)
 
 	handler := Metrics(m)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func TestMetricsRecords200(t *testing.T) {
 }
 
 func TestMetricsRecords429(t *testing.T) {
-	m := metrics.New()
+	m := metrics.New(nil)
 
 	handler := Metrics(m)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +101,7 @@ func TestMetricsRecords429(t *testing.T) {
 }
 
 func TestMetricsRecords500(t *testing.T) {
-	m := metrics.New()
+	m := metrics.New(nil)
 
 	handler := Metrics(m)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

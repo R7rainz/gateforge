@@ -9,7 +9,7 @@ import (
 )
 
 func TestHandlerExportsMetrics(t *testing.T) {
-	collector := New()
+	collector := New(nil)
 
 	collector.Record(http.StatusOK, 10*time.Millisecond)
 	collector.Record(http.StatusInternalServerError, 20*time.Millisecond)

@@ -86,7 +86,7 @@ func main() {
 		log.Fatalf("failed to create router: %v", err)
 	}
 
-	metricCollector := metrics.New()
+	metricCollector := metrics.New(loadBalancers)
 
 	// API middleware.
 	timeoutMux := http.TimeoutHandler(

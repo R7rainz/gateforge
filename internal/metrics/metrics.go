@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/r7rainz/gateforge/internal/loadbalancer"
 )
 
 type Metrics struct {
@@ -13,6 +15,7 @@ type Metrics struct {
 	errors5xx           atomic.Uint64
 	rateLimitedRequests atomic.Uint64
 	totalLatencyNanos   atomic.Uint64
+	loadBalancers       map[string]*loadbalancer.RoundRobin
 }
 
 type Snapshot struct {
@@ -22,8 +25,10 @@ type Snapshot struct {
 	TotalLatencyNanos   uint64
 }
 
-func New() *Metrics {
-	return &Metrics{}
+func New(loadbalancer map[string]*loadbalancer.RoundRobin) *Metrics {
+	return &Metrics{
+		loadBalancers: loadbalancer,
+	}
 }
 
 func (m *Metrics) Record(status int, latency time.Duration) {
@@ -76,5 +81,25 @@ func (m *Metrics) Handler() http.Handler {
 			snapshot.RateLimitedRequests,
 			snapshot.TotalLatencyNanos,
 		)
+
+		fmt.Fprintf(
+			w,
+			"\n# HELP gateforge_backend_health Health status of GateForge backends\n"+
+				"# TYPE gateforge_backend_health gauge\n",
+		)
+
+		for service, loadBalancer := range m.loadBalancers {
+			states := loadBalancer.Snapshot()
+
+			for _, state := range states {
+				health := 0
+
+				if state.Healthy {
+					health = 1
+				}
+
+				fmt.Fprintf(w, "gateforge_backend_health{service=%q, backend=%q} %d\n", service, state.URL, health)
+			}
+		}
 	})
 }

@@ -14,6 +14,7 @@ func TestHandlerExportsMetrics(t *testing.T) {
 	collector.Record(http.StatusOK, 10*time.Millisecond)
 	collector.Record(http.StatusInternalServerError, 20*time.Millisecond)
 	collector.Record(http.StatusTooManyRequests, 30*time.Millisecond)
+	collector.ConnectionState(nil, http.StateNew)
 
 	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 
@@ -48,4 +49,10 @@ func TestHandlerExportsMetrics(t *testing.T) {
 	if !strings.Contains(body, "gateforge_request_latency_nanoseconds_total 60000000") {
 		t.Fatalf("expected total latency metric, got:\n%s", body)
 	}
+
+	if !strings.Contains(body, "gateforge_active_connections 1") {
+		t.Fatalf("expected active connections metric, got:\n%s", body)
+	}
+
+	collector.ConnectionState(nil, http.StateClosed)
 }

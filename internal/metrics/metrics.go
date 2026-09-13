@@ -3,6 +3,7 @@ package metrics
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ type Metrics struct {
 	errors5xx           atomic.Uint64
 	rateLimitedRequests atomic.Uint64
 	totalLatencyNanos   atomic.Uint64
+	activeConnections   atomic.Int64
 	loadBalancers       map[string]*loadbalancer.RoundRobin
 	gatewayInstances    map[string]*gateway.Gateway
 }
@@ -26,6 +28,7 @@ type Snapshot struct {
 	Errors5xx           uint64
 	RateLimitedRequests uint64
 	TotalLatencyNanos   uint64
+	ActiveConnections   int64
 }
 
 func New(loadbalancer map[string]*loadbalancer.RoundRobin, gatewayInstances map[string]*gateway.Gateway) *Metrics {
@@ -54,6 +57,16 @@ func (m *Metrics) Snapshot() Snapshot {
 		Errors5xx:           uint64(m.errors5xx.Load()),
 		RateLimitedRequests: uint64(m.rateLimitedRequests.Load()),
 		TotalLatencyNanos:   uint64(m.totalLatencyNanos.Load()),
+		ActiveConnections:   m.activeConnections.Load(),
+	}
+}
+
+func (m *Metrics) ConnectionState(_ net.Conn, state http.ConnState) {
+	switch state {
+	case http.StateNew:
+		m.activeConnections.Add(1)
+	case http.StateClosed, http.StateHijacked:
+		m.activeConnections.Add(-1)
 	}
 }
 
@@ -84,6 +97,14 @@ func (m *Metrics) Handler() http.Handler {
 			snapshot.Errors5xx,
 			snapshot.RateLimitedRequests,
 			snapshot.TotalLatencyNanos,
+		)
+
+		fmt.Fprintf(
+			w,
+			"\n# HELP gateforge_active_connections Current number of open connections\n"+
+				"# TYPE gateforge_active_connections gauge\n"+
+				"gateforge_active_connections %d\n",
+			snapshot.ActiveConnections,
 		)
 
 		fmt.Fprintf(

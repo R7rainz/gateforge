@@ -155,8 +155,9 @@ func main() {
 	)(metricMux)
 
 	server := &http.Server{
-		Addr:    cfg.ListenAddress,
-		Handler: loggedMux,
+		Addr:      cfg.ListenAddress,
+		Handler:   loggedMux,
+		ConnState: metricCollector.ConnectionState,
 	}
 
 	signalCtx, stopSignal := signal.NotifyContext(
